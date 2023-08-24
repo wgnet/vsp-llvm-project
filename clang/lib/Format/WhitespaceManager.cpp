@@ -109,6 +109,8 @@ const tooling::Replacements &WhitespaceManager::generateReplacements() {
   alignTrailingComments();
   alignEscapedNewlines();
   alignArrayInitializers();
+  alignCustom();
+
   generateChanges();
 
   return Replaces;
@@ -1192,6 +1194,19 @@ void WhitespaceManager::alignArrayInitializersLeftJustified(
       ++RowCount;
     }
   }
+}
+
+void WhitespaceManager::alignCustom() {
+  AlignTokens(
+      Style,
+      [&](const Change &C) {
+        return C.NewlinesBefore <= 0 &&
+               std::find(Style.AlignCustomTokens.begin(),
+                         Style.AlignCustomTokens.end(),
+                         C.Tok->TokenText) != Style.AlignCustomTokens.end();
+      },
+      Changes, /*StartAt=*/0, Style.AlignCustom,
+      /*RightJustify=*/true);
 }
 
 bool WhitespaceManager::isSplitCell(const CellDescription &Cell) {

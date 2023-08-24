@@ -46,6 +46,7 @@ private:
   /// Add a new line and the required indent before the first Token
   /// of the \c UnwrappedLine if there was no structural parsing error.
   void formatFirstToken(const AnnotatedLine &Line,
+                        const AnnotatedLine *NextLine,
                         const AnnotatedLine *PreviousLine,
                         const AnnotatedLine *PrevPrevLine,
                         const SmallVectorImpl<AnnotatedLine *> &Lines,

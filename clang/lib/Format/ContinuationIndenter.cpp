@@ -36,8 +36,8 @@ static bool shouldIndentWrappedSelectorName(const FormatStyle &Style,
 
 // Returns the length of everything up to the first possible line break after
 // the ), ], } or > matching \c Tok.
-static unsigned getLengthToMatchingParen(const FormatToken &Tok,
-                                         const std::vector<ParenState> &Stack) {
+unsigned getLengthToMatchingParen(const FormatToken &Tok,
+                                  const std::vector<ParenState> &Stack) {
   // Normally whether or not a break before T is possible is calculated and
   // stored in T.CanBreakBefore. Braces, array initializers and text proto
   // messages like `key: < ... >` are an exception: a break is possible
@@ -1023,8 +1023,11 @@ unsigned ContinuationIndenter::getNewLineColumn(const LineState &State) {
   const FormatToken &Previous = *Current.Previous;
   // If we are continuing an expression, we want to use the continuation indent.
   unsigned ContinuationIndent =
-      std::max(CurrentState.LastSpace, CurrentState.Indent) +
+      std::max(
+          CurrentState.LastSpace,
+          (Style.UseExpressionContinuationIndent ? CurrentState.Indent : 0)) +
       Style.ContinuationIndentWidth;
+
   const FormatToken *PreviousNonComment = Current.getPreviousNonComment();
   const FormatToken *NextNonComment = Previous.getNextNonComment();
   if (!NextNonComment)

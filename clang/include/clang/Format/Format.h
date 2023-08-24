@@ -31,6 +31,8 @@ class FileSystem;
 namespace clang {
 namespace format {
 
+struct FormatToken;
+
 enum class ParseError {
   Success = 0,
   Error,
@@ -294,6 +296,11 @@ struct FormatStyle {
   /// \endcode
   /// \version 3.8
   AlignConsecutiveStyle AlignConsecutiveDeclarations;
+
+  /// Style of aligning custom tokens.
+  /// Tokens declared in AlignCustomTokens will be interpretted like = in
+  /// AlignConsecutiveAssignments
+  AlignConsecutiveStyle AlignCustom;
 
   /// Different styles for aligning escaped newlines.
   enum EscapedNewlineAlignmentStyle : int8_t {
@@ -2198,6 +2205,19 @@ struct FormatStyle {
   /// \version 8
   std::vector<std::string> StatementMacros;
 
+  /// A vector of macros that should be always plased in one line.
+  /// These macros are always interpreted as statement macros.
+  ///
+  std::vector<std::string> OneLineMacros;
+
+  /// A vector of macros that should be preceded by line breaks.
+  /// If there is a comment before the macro, a line break will be inserted
+  /// before the comment.
+  ///
+  std::vector<std::string> BreakBeforeMacros;
+
+  bool isBreakBeforeMacro(const FormatToken &tok) const;
+
   /// A vector of macros which are used to open namespace blocks.
   ///
   /// These are expected to be macros of the form:
@@ -2838,6 +2858,16 @@ struct FormatStyle {
   /// \version 12
   unsigned PenaltyIndentedWhitespace;
 
+  /// Penalty for putting the member access tokens like . or -> onto its own
+  /// line.
+  unsigned PenaltySingleMemberAccess;
+
+  /// Penalty for putting :: onto its own line.
+  unsigned PenaltyColonColon;
+
+  /// Penalty for putting < onto its own line.
+  unsigned PenaltyTemplateOpener;
+
   /// The ``&``, ``&&`` and ``*`` alignment style.
   enum PointerAlignmentStyle : int8_t {
     /// Align pointer to the left.
@@ -2875,6 +2905,27 @@ struct FormatStyle {
   /// \endcode
   /// \version 13
   int PPIndentWidth;
+
+  /// Regex patterns to ignore formatting of files
+  std::vector<std::string> IgnoredFiles;
+
+  /// A list of tokens, the text between which and their corresponding
+  /// semicolons will not be formatted
+  std::vector<std::string> IgnoredTokens;
+
+  /// A list of tokens which will be interpretted as align starters like = in
+  /// AlignConsecutiveAssignments
+  std::vector<std::string> AlignCustomTokens;
+
+  /// Use expression indentation in the call chain
+  bool UseExpressionContinuationIndent;
+
+  /// By default, all initialization lists use the opening brace indentation
+  /// for all elements of the list, unless the length of all elements exceeds
+  /// the line length limit. This option allows you to align them as if the
+  /// length of the string is never enough, and position them at the beginning
+  /// of the string.
+  bool DontIndentFirstLevelInitListByBrace;
 
   /// See documentation of ``RawStringFormats``.
   struct RawStringFormat {
@@ -3982,9 +4033,21 @@ struct FormatStyle {
            BitFieldColonSpacing == R.BitFieldColonSpacing &&
            Standard == R.Standard &&
            StatementAttributeLikeMacros == R.StatementAttributeLikeMacros &&
-           StatementMacros == R.StatementMacros && TabWidth == R.TabWidth &&
+           StatementMacros == R.StatementMacros &&
+           OneLineMacros == R.OneLineMacros &&
+           BreakBeforeMacros == R.BreakBeforeMacros && TabWidth == R.TabWidth &&
            UseTab == R.UseTab && UseCRLF == R.UseCRLF &&
-           TypenameMacros == R.TypenameMacros;
+           TypenameMacros == R.TypenameMacros &&
+           IgnoredFiles == R.IgnoredFiles && IgnoredTokens == R.IgnoredTokens &&
+           UseExpressionContinuationIndent ==
+               R.UseExpressionContinuationIndent &&
+           DontIndentFirstLevelInitListByBrace ==
+               R.DontIndentFirstLevelInitListByBrace &&
+           PenaltySingleMemberAccess == R.PenaltySingleMemberAccess &&
+           PenaltyColonColon == R.PenaltyColonColon &&
+           PenaltyTemplateOpener == R.PenaltyTemplateOpener &&
+           AlignCustom == R.AlignCustom &&
+           AlignCustomTokens == R.AlignCustomTokens;
   }
 
   llvm::Optional<FormatStyle> GetLanguageStyle(LanguageKind Language) const;

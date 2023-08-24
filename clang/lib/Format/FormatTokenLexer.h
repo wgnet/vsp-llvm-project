@@ -118,6 +118,9 @@ private:
 
   bool FormattingDisabled;
 
+  bool FormattingDisabledByIgnoredTokens;
+  unsigned IgnoredTokensBracesBalance;
+
   llvm::Regex MacroBlockBeginRegex;
   llvm::Regex MacroBlockEndRegex;
 

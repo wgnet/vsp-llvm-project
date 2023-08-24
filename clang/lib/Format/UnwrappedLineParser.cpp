@@ -710,7 +710,7 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
       LBraceStack.pop_back();
       break;
     case tok::identifier:
-      if (!Tok->is(TT_StatementMacro))
+      if (!Tok->isStatementMacro())
         break;
       LLVM_FALLTHROUGH;
     case tok::at:
@@ -1545,7 +1545,7 @@ void UnwrappedLineParser::parseStructuralElement(IfStmtKind *IfKind,
         return;
       }
     }
-    if (Style.isCpp() && FormatTok->is(TT_StatementMacro)) {
+    if (Style.isCpp() && FormatTok->isStatementMacro()) {
       parseStatementMacro();
       return;
     }
@@ -1801,7 +1801,7 @@ void UnwrappedLineParser::parseStructuralElement(IfStmtKind *IfKind,
         break;
       }
 
-      if (Style.isCpp() && FormatTok->is(TT_StatementMacro)) {
+      if (Style.isCpp() && FormatTok->isStatementMacro()) {
         parseStatementMacro();
         return;
       }

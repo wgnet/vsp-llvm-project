@@ -114,6 +114,8 @@ namespace format {
   TYPE(StartOfName)                                                            \
   TYPE(StatementAttributeLikeMacro)                                            \
   TYPE(StatementMacro)                                                         \
+  TYPE(OneLineMacro)                                                           \
+  TYPE(BreakBeforeMacro)                                                       \
   TYPE(StructLBrace)                                                           \
   TYPE(StructuredBindingLSquare)                                               \
   TYPE(TemplateCloser)                                                         \
@@ -606,6 +608,10 @@ public:
     return isOneOf(tok::arrow, tok::period, tok::arrowstar) &&
            !isOneOf(TT_DesignatedInitializerPeriod, TT_TrailingReturnArrow,
                     TT_LambdaArrow, TT_LeadingJavaAnnotation);
+  }
+
+  bool isStatementMacro() const {
+    return isOneOf(TT_StatementMacro, TT_OneLineMacro);
   }
 
   bool isUnaryOperator() const {

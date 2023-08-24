@@ -1251,7 +1251,8 @@ private:
   void parsePragma() {
     next(); // Consume "pragma".
     if (CurrentToken &&
-        CurrentToken->isOneOf(Keywords.kw_mark, Keywords.kw_option, Keywords.kw_region)) {
+        CurrentToken->isOneOf(Keywords.kw_mark, Keywords.kw_option,
+                              Keywords.kw_region)) {
       bool IsMark = CurrentToken->is(Keywords.kw_mark);
       next();
       next(); // Consume first token (so we fix leading whitespace).
@@ -1454,7 +1455,7 @@ private:
             TT_RecordLBrace, TT_StructLBrace, TT_UnionLBrace, TT_RequiresClause,
             TT_RequiresClauseInARequiresExpression, TT_RequiresExpression,
             TT_RequiresExpressionLParen, TT_RequiresExpressionLBrace,
-            TT_CompoundRequirementLBrace, TT_BracedListLBrace))
+            TT_CompoundRequirementLBrace, TT_BracedListLBrace, TT_OneLineMacro))
       CurrentToken->setType(TT_Unknown);
     CurrentToken->Role.reset();
     CurrentToken->MatchingParen = nullptr;
@@ -2948,7 +2949,7 @@ unsigned TokenAnnotator::splitPenalty(const AnnotatedLine &Line,
 
   if (Left.is(tok::coloncolon) ||
       (Right.is(tok::period) && Style.Language == FormatStyle::LK_Proto))
-    return 500;
+    return Style.PenaltyColonColon;
   if (Right.isOneOf(TT_StartOfName, TT_FunctionDeclarationName) ||
       Right.is(tok::kw_operator)) {
     if (Line.startsWith(tok::kw_for) && Right.PartOfMultiVariableDeclStmt)
@@ -2997,7 +2998,7 @@ unsigned TokenAnnotator::splitPenalty(const AnnotatedLine &Line,
     //   aaaaaaa
     //       .aaaaaaaaa.bbbbbbbb(cccccccc);
     return !Right.NextOperator || !Right.NextOperator->Previous->closesScope()
-               ? 150
+               ? Style.PenaltySingleMemberAccess
                : 35;
   }
 
@@ -3047,7 +3048,7 @@ unsigned TokenAnnotator::splitPenalty(const AnnotatedLine &Line,
   if (Right.is(tok::r_brace))
     return 1;
   if (Left.is(TT_TemplateOpener))
-    return 100;
+    return Style.PenaltyTemplateOpener;
   if (Left.opensScope()) {
     // If we aren't aligning after opening parens/braces we can always break
     // here unless the style does not want us to place all arguments on the

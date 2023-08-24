@@ -647,6 +647,7 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("AlignEscapedNewlines", Style.AlignEscapedNewlines);
     IO.mapOptional("AlignOperands", Style.AlignOperands);
     IO.mapOptional("AlignTrailingComments", Style.AlignTrailingComments);
+    IO.mapOptional("AlignCustom", Style.AlignCustom);
     IO.mapOptional("AllowAllArgumentsOnNextLine",
                    Style.AllowAllArgumentsOnNextLine);
     IO.mapOptional("AllowAllParametersOfDeclarationOnNextLine",
@@ -841,6 +842,10 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.PenaltyReturnTypeOnItsOwnLine);
     IO.mapOptional("PenaltyIndentedWhitespace",
                    Style.PenaltyIndentedWhitespace);
+    IO.mapOptional("PenaltySingleMemberAccess",
+                   Style.PenaltySingleMemberAccess);
+    IO.mapOptional("PenaltyColonColon", Style.PenaltyColonColon);
+    IO.mapOptional("PenaltyTemplateOpener", Style.PenaltyTemplateOpener);
     IO.mapOptional("PointerAlignment", Style.PointerAlignment);
     IO.mapOptional("PPIndentWidth", Style.PPIndentWidth);
     IO.mapOptional("RawStringFormats", Style.RawStringFormats);
@@ -894,6 +899,15 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("StatementAttributeLikeMacros",
                    Style.StatementAttributeLikeMacros);
     IO.mapOptional("StatementMacros", Style.StatementMacros);
+    IO.mapOptional("OneLineMacros", Style.OneLineMacros);
+    IO.mapOptional("BreakBeforeMacros", Style.BreakBeforeMacros);
+    IO.mapOptional("IgnoredFiles", Style.IgnoredFiles);
+    IO.mapOptional("IgnoredTokens", Style.IgnoredTokens);
+    IO.mapOptional("AlignCustomTokens", Style.AlignCustomTokens);
+    IO.mapOptional("UseExpressionContinuationIndent",
+                   Style.UseExpressionContinuationIndent);
+    IO.mapOptional("DontIndentFirstLevelInitListByBrace",
+                   Style.DontIndentFirstLevelInitListByBrace);
     IO.mapOptional("TabWidth", Style.TabWidth);
     IO.mapOptional("TypenameMacros", Style.TypenameMacros);
     IO.mapOptional("UseCRLF", Style.UseCRLF);
@@ -1186,6 +1200,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.AlignConsecutiveAssignments.PadOperators = true;
   LLVMStyle.AlignConsecutiveBitFields = {};
   LLVMStyle.AlignConsecutiveDeclarations = {};
+  LLVMStyle.AlignCustom = {true, true, true, false, false};
   LLVMStyle.AlignConsecutiveMacros = {};
   LLVMStyle.AllowAllArgumentsOnNextLine = true;
   LLVMStyle.AllowAllParametersOfDeclarationOnNextLine = true;
@@ -1266,6 +1281,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.IndentWrappedFunctionNames = false;
   LLVMStyle.IndentWidth = 2;
   LLVMStyle.PPIndentWidth = -1;
+  LLVMStyle.UseExpressionContinuationIndent = true;
   LLVMStyle.InsertBraces = false;
   LLVMStyle.InsertTrailingCommas = FormatStyle::TCS_None;
   LLVMStyle.JavaScriptQuotes = FormatStyle::JSQS_Leave;
@@ -1328,6 +1344,9 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.PenaltyBreakOpenParenthesis = 0;
   LLVMStyle.PenaltyBreakTemplateDeclaration = prec::Relational;
   LLVMStyle.PenaltyIndentedWhitespace = 0;
+  LLVMStyle.PenaltySingleMemberAccess = 150;
+  LLVMStyle.PenaltyColonColon = 500;
+  LLVMStyle.PenaltyTemplateOpener = 100;
 
   LLVMStyle.DisableFormat = false;
   LLVMStyle.SortIncludes = FormatStyle::SI_CaseSensitive;
@@ -1656,7 +1675,9 @@ FormatStyle getNoStyle() {
 bool getPredefinedStyle(StringRef Name, FormatStyle::LanguageKind Language,
                         FormatStyle *Style) {
   if (Name.equals_insensitive("llvm"))
-    *Style = getLLVMStyle(Language);
+    // Visual Studio do not allow to chose "none" as fallback style,
+    // so we use llvm style for this purpose
+    *Style = getNoStyle();
   else if (Name.equals_insensitive("chromium"))
     *Style = getChromiumStyle(Language);
   else if (Name.equals_insensitive("mozilla"))
@@ -1818,6 +1839,11 @@ void FormatStyle::FormatStyleSet::Add(FormatStyle Style) {
 }
 
 void FormatStyle::FormatStyleSet::Clear() { Styles.reset(); }
+
+bool FormatStyle::isBreakBeforeMacro(const FormatToken &tok) const {
+  return std::find(BreakBeforeMacros.cbegin(), BreakBeforeMacros.cend(),
+                   tok.TokenText) != BreakBeforeMacros.cend();
+}
 
 llvm::Optional<FormatStyle>
 FormatStyle::GetLanguageStyle(FormatStyle::LanguageKind Language) const {
@@ -3450,7 +3476,7 @@ FormatStyle::LanguageKind guessLanguage(StringRef FileName, StringRef Code) {
 
 const char *DefaultFormatStyle = "file";
 
-const char *DefaultFallbackStyle = "LLVM";
+const char *DefaultFallbackStyle = "none";
 
 llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>>
 loadAndParseConfigFile(StringRef ConfigFile, llvm::vfs::FileSystem *FS,

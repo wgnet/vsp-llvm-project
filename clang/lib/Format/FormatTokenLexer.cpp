@@ -32,7 +32,9 @@ FormatTokenLexer::FormatTokenLexer(
       LangOpts(getFormattingLangOpts(Style)), SourceMgr(SourceMgr), ID(ID),
       Style(Style), IdentTable(IdentTable), Keywords(IdentTable),
       Encoding(Encoding), Allocator(Allocator), FirstInLineIndex(0),
-      FormattingDisabled(false), MacroBlockBeginRegex(Style.MacroBlockBegin),
+      FormattingDisabled(false), FormattingDisabledByIgnoredTokens(false),
+      IgnoredTokensBracesBalance(0),
+      MacroBlockBeginRegex(Style.MacroBlockBegin),
       MacroBlockEndRegex(Style.MacroBlockEnd) {
   Lex.reset(new Lexer(ID, SourceMgr.getBufferOrFake(ID), SourceMgr, LangOpts));
   Lex->SetKeepWhitespaceMode(true);
@@ -52,6 +54,14 @@ FormatTokenLexer::FormatTokenLexer(
   for (const std::string &StatementMacro : Style.StatementMacros) {
     auto Identifier = &IdentTable.get(StatementMacro);
     Macros.insert({Identifier, TT_StatementMacro});
+  }
+  for (const std::string &OneLineMacro : Style.OneLineMacros) {
+    auto Identifier = &IdentTable.get(OneLineMacro);
+    Macros.insert({Identifier, TT_OneLineMacro});
+  }
+  for (const std::string &BreakBeforeMacro : Style.BreakBeforeMacros) {
+    auto Identifier = &IdentTable.get(BreakBeforeMacro);
+    Macros.insert({Identifier, TT_BreakBeforeMacro});
   }
   for (const std::string &TypenameMacro : Style.TypenameMacros) {
     auto Identifier = &IdentTable.get(TypenameMacro);
@@ -1070,7 +1080,21 @@ void FormatTokenLexer::readRawToken(FormatToken &Tok) {
                                Tok.TokenText == "/* clang-format on */"))
     FormattingDisabled = false;
 
-  Tok.Finalized = FormattingDisabled;
+  if (std::find(Style.IgnoredTokens.begin(), Style.IgnoredTokens.end(),
+                Tok.TokenText) != Style.IgnoredTokens.end()) {
+    FormattingDisabledByIgnoredTokens = true;
+    if (!Tokens.empty() && Tokens.back()->TokenText == "[")
+      Tokens.back()->Finalized = true;
+  } else if (Tok.TokenText == ";" && FormattingDisabledByIgnoredTokens &&
+             IgnoredTokensBracesBalance == 0) {
+    FormattingDisabledByIgnoredTokens = false;
+  } else if (Tok.TokenText == "{" && FormattingDisabledByIgnoredTokens) {
+    ++IgnoredTokensBracesBalance;
+  } else if (Tok.TokenText == "}" && FormattingDisabledByIgnoredTokens) {
+    --IgnoredTokensBracesBalance;
+  }
+
+  Tok.Finalized = FormattingDisabled || FormattingDisabledByIgnoredTokens;
 
   if (Tok.is(tok::comment) && (Tok.TokenText == "// clang-format off" ||
                                Tok.TokenText == "/* clang-format off */"))

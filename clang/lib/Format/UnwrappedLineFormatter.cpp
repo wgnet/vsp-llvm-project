@@ -17,6 +17,9 @@
 namespace clang {
 namespace format {
 
+unsigned getLengthToMatchingParen(const FormatToken &Tok,
+                                  const std::vector<ParenState> &Stack);
+
 namespace {
 
 bool startsExternCBlock(const AnnotatedLine &Line) {
@@ -983,6 +986,8 @@ protected:
     return true;
   }
 
+  const FormatStyle &getStyle() { return Style; }
+
   ContinuationIndenter *Indenter;
 
 private:
@@ -1180,8 +1185,30 @@ private:
     if (!NewLine && Indenter->mustBreak(PreviousNode->State))
       return;
 
+    if (getStyle().DontIndentFirstLevelInitListByBrace && !NewLine) {
+      auto Previous = PreviousNode->State.NextToken
+                          ? PreviousNode->State.NextToken->Previous
+                          : nullptr;
+
+      if (Previous && Previous->is(tok::l_brace) &&
+          Previous->ParameterCount > 1 && Previous->NestingLevel == 0) {
+        unsigned BodyLength =
+            getLengthToMatchingParen(*PreviousNode->State.NextToken->Previous,
+                                     PreviousNode->State.Stack);
+
+        if (Previous->TotalLength + BodyLength >
+            Indenter->getColumnLimit(PreviousNode->State)) {
+          Penalty += 1000;
+        }
+      }
+    }
+
     StateNode *Node = new (Allocator.Allocate())
         StateNode(PreviousNode->State, NewLine, PreviousNode);
+
+    if (Node->State.Line->First->is(TT_OneLineMacro))
+      Node->State.Stack.front().NoLineBreak = true;
+
     if (!formatChildren(Node->State, NewLine, /*DryRun=*/true, Penalty))
       return;
 
@@ -1276,13 +1303,14 @@ unsigned UnwrappedLineFormatter::format(
     }
 
     if (ShouldFormat && TheLine.Type != LT_Invalid) {
+      NextLine = Joiner.getNextMergedLine(DryRun, IndentTracker);
       if (!DryRun) {
         bool LastLine = TheLine.First->is(tok::eof);
-        formatFirstToken(TheLine, PreviousLine, PrevPrevLine, Lines, Indent,
+        formatFirstToken(TheLine, NextLine, PreviousLine, PrevPrevLine, Lines,
+                         Indent,
                          LastLine ? LastStartColumn : NextStartColumn + Indent);
       }
 
-      NextLine = Joiner.getNextMergedLine(DryRun, IndentTracker);
       unsigned ColumnLimit = getColumnLimit(TheLine.InPPDirective, NextLine);
       bool FitsIntoOneLine =
           TheLine.Last->TotalLength + Indent <= ColumnLimit ||
@@ -1323,7 +1351,7 @@ unsigned UnwrappedLineFormatter::format(
                               TheLine.LeadingEmptyLinesAffected);
         // Format the first token.
         if (ReformatLeadingWhitespace)
-          formatFirstToken(TheLine, PreviousLine, PrevPrevLine, Lines,
+          formatFirstToken(TheLine, NextLine, PreviousLine, PrevPrevLine, Lines,
                            TheLine.First->OriginalColumn,
                            TheLine.First->OriginalColumn);
         else
@@ -1345,8 +1373,8 @@ unsigned UnwrappedLineFormatter::format(
 }
 
 void UnwrappedLineFormatter::formatFirstToken(
-    const AnnotatedLine &Line, const AnnotatedLine *PreviousLine,
-    const AnnotatedLine *PrevPrevLine,
+    const AnnotatedLine &Line, const AnnotatedLine *NextLine,
+    const AnnotatedLine *PreviousLine, const AnnotatedLine *PrevPrevLine,
     const SmallVectorImpl<AnnotatedLine *> &Lines, unsigned Indent,
     unsigned NewlineIndent) {
   FormatToken &RootToken = *Line.First;
@@ -1359,6 +1387,25 @@ void UnwrappedLineFormatter::formatFirstToken(
   }
   unsigned Newlines =
       std::min(RootToken.NewlinesBefore, Style.MaxEmptyLinesToKeep + 1);
+
+  // add empty lines before BreakBeforeMacros
+  const bool bBreakBeforeMacro = PreviousLine &&
+                                 Style.isBreakBeforeMacro(RootToken) &&
+                                 !PreviousLine->isComment();
+
+  const bool bNextIsBreakBeforeMacro =
+      NextLine && NextLine->First && Style.isBreakBeforeMacro(*NextLine->First);
+
+  const bool bBreakBeforeCommentThatBeforeMacro =
+      bNextIsBreakBeforeMacro && PreviousLine && Line.isComment() &&
+      !PreviousLine->isComment();
+
+  if (bBreakBeforeMacro || bBreakBeforeCommentThatBeforeMacro) {
+    const FormatToken *previousToken = PreviousLine->Last;
+    if ((!previousToken || !previousToken->is(tok::l_brace)) && Newlines <= 1)
+      Newlines = 2;
+  }
+
   // Remove empty lines before "}" where applicable.
   if (RootToken.is(tok::r_brace) &&
       (!RootToken.Next ||

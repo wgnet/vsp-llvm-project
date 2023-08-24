@@ -24,6 +24,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Process.h"
+#include <filesystem>
 #include <fstream>
 
 using namespace llvm;
@@ -65,15 +66,15 @@ static cl::opt<std::string>
     Style("style", cl::desc(clang::format::StyleOptionHelpDescription),
           cl::init(clang::format::DefaultFormatStyle),
           cl::cat(ClangFormatCategory));
-static cl::opt<std::string>
-    FallbackStyle("fallback-style",
-                  cl::desc("The name of the predefined style used as a\n"
-                           "fallback in case clang-format is invoked with\n"
-                           "-style=file, but can not find the .clang-format\n"
-                           "file to use.\n"
-                           "Use -fallback-style=none to skip formatting."),
-                  cl::init(clang::format::DefaultFallbackStyle),
-                  cl::cat(ClangFormatCategory));
+static cl::opt<std::string> FallbackStyle(
+    "fallback-style",
+    cl::desc("The name of the predefined style used as a\n"
+             "fallback in case clang-format is invoked with\n"
+             "-style=file, but can not find the .clang-format\n"
+             "file to use.\n"
+             "Default is \"none\", which means \"skip formatting\"."),
+    cl::init(clang::format::DefaultFallbackStyle),
+    cl::cat(ClangFormatCategory));
 
 static cl::opt<std::string> AssumeFileName(
     "assume-filename",
@@ -413,7 +414,12 @@ static bool format(StringRef FileName) {
   std::vector<tooling::Range> Ranges;
   if (fillRanges(Code.get(), Ranges))
     return true;
-  StringRef AssumedFileName = (FileName == "-") ? AssumeFileName : FileName;
+
+  std::string AssumedFileName =
+      (FileName == "-")
+          ? std::filesystem::current_path().string() + '\\' + AssumeFileName
+          : std::string(FileName);
+
   if (AssumedFileName.empty()) {
     llvm::errs() << "error: empty filenames are not allowed\n";
     return true;
@@ -426,6 +432,16 @@ static bool format(StringRef FileName) {
     llvm::errs() << llvm::toString(FormatStyle.takeError()) << "\n";
     return true;
   }
+
+  const bool IgnoreThisFile = std::any_of(
+      FormatStyle->IgnoredFiles.cbegin(), FormatStyle->IgnoredFiles.cend(),
+      [&AssumedFileName](const std::string &Pattern) {
+        llvm::Regex FileRegex(Pattern);
+        return FileRegex.match(AssumedFileName);
+      });
+
+  if (IgnoreThisFile)
+    return false;
 
   StringRef QualifierAlignmentOrder = QualifierAlignment;
 

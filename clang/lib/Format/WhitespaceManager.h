@@ -261,6 +261,9 @@ private:
   /// as described by \p CellDescs.
   void alignArrayInitializersLeftJustified(CellDescriptions &&CellDescs);
 
+  /// Align tokens declared in AlignCustomTokens
+  void alignCustom();
+
   /// Calculate the cell width between two indexes.
   unsigned calculateCellWidth(unsigned Start, unsigned End,
                               bool WithSpaces = false) const;
